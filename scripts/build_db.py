@@ -1,3 +1,4 @@
+# Designed by TiantianYe
 # -*- coding: utf-8 -*-
 """【参考实现·七年级】逐题数据库与统计脚本 —— 其他年级必须按以下步骤适配：
 1. 重写 DB 数据：逐卷逐题人工判读后录入 (paper, qno, typ, score, score_group_total, code, subpoints, diff, note)；
