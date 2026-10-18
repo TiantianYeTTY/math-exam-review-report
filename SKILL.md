@@ -36,6 +36,9 @@ pandoc "试卷（解析版）.docx" -t markdown --wrap=none --extract-media="T01
 
 - 产物放 `.workbuddy/analysis/extracted/`（T*.md）与 `.workbuddy/analysis/media_extract/`（T*/media/*.png）。中间产物一律进 `.workbuddy/`，禁止在用户工作区根目录新开项目文件夹。
 - 试卷题号在 pandoc 输出中形如 `17\. 题干`；小公式常是图片 `![](Txx/media/imageN.png)`。
+- **清点对账（强制，九年级教训）**：卷目录清单由脚本生成（`ls -d */` / find），禁止人工誊抄；转换完成后打印"目录数 = 处理卷数"对账行，不相等立即停工排查；剔除/删除后再对账一次。同系列雷同卷名（"模拟卷/模拟卷2/3/4"）是漏卷高发区。
+- **解析版匹配抽查（强制，九年级教训）**：每卷抽 3-5 个锚点题对质原卷题干与解析内容。菁优网系多卷共享题池，解析版可能整本串卷或题号错乱——错位卷按内容匹配或自解，无法可信对位的列入 EXCLUDED（不入数据库/统计/报告），详见 references/analysis-methodology.md §9。
+- **WMF 公式图**：公式若为 MathType→WMF 图片，用 libwmf(wmf2gd) 渲染成 png 再读（详见 references/word-pipeline.md 新坑）。
 
 ### Stage 1 · 逐题数据库（scripts/build_db.py）
 
@@ -43,11 +46,13 @@ pandoc "试卷（解析版）.docx" -t markdown --wrap=none --extract-media="T01
 2. 逐题数据必须对照原卷与解析核验；题组总分已知但逐题未标注时 score 记 None，禁止虚构逐题分值。
 3. 运行生成 `questions.csv` 与 `stats.json`（考点覆盖、覆盖率、难度分布、方法细分、压轴盘点、高难填空盘点）。
 4. 用统计结果决定报告的"高频题型"结论——一切频次结论必须能追溯到数据库。
+5. **子代理批量判读规则（九年级教训）**：派发时必须明确"每 5-6 题把结果行写入结果文件（如 db/TXX.txt），最终回复只报一行进度"；主控每 10-15 分钟核对落盘文件行数与修改时间，约 15 分钟无更新立即接手补齐，绝不空等；主控对子代理产出抽样复核（每卷至少 3 题）后才采信。
+6. **题组分值笔误反推**：卷面题组标题有笔误（如"三、填空题"实为解答题、分值加总≠满分）时，按卷面总分反推唯一自洽的分值方案并在 note 记录依据（见 references/analysis-methodology.md §9）。
 
 ### Stage 2 · 撰写报告内容源 review_content.md
 
 1. 动笔前必读 `references/report-template.md`（七部分结构与条目模板）和 `references/format-rules.md`（格式硬规则 + 错误档案）。
-2. 在 `.workbuddy/output_{年级缩写}/stage2/review_content.md` 写作。七大部分：知识体系总览 → 选择题专项 → 填空题专项 → 压轴题拆解 → 跨卷母题 → 易错点清单 → AI 变式题库。
+2. 在 `.workbuddy/output_{年级缩写}/stage2/review_content.md` 写作。七大部分：知识体系总览 → 选择题专项 → 填空题专项 → 压轴题拆解 → 跨卷母题 → 易错点清单 → AI 变式题库。条目骨架顺序固定：**题目（引用块）→ 题目图片（若有，紧跟题干）→ 答案 → 解析**，答案行不得出现在题图之前。
 3. 撰写中对每道引用题执行三查：题号对不对（grep 原卷）、题干选项完整吗（图片公式必须读图转写）、数值对不对（答案重算）。
 
 ### Stage 3 · 生成 Word
@@ -61,7 +66,7 @@ python3 scripts/style_docx.py out.docx    # 见 references/word-pipeline.md
 
 ### Stage 4 · 交付前质检（硬闸门）
 
-逐项执行 `references/word-pipeline.md` 的校验清单：$ 配对、TXX 残留、元信息残留、横线 0、引用块数、8 类关键内容抽查、图片数、oMath 数、页眉存在。任何一项不过，修复后重新生成；禁止带病交付。
+逐项执行 `references/word-pipeline.md` 的校验清单：$ 配对、TXX 残留、元信息残留、横线 0、引用块数、8 类关键内容抽查、图片数、oMath 数、页眉存在、**条目内图片行先于答案行**、**统计口径对账**。前半部分可由 `scripts/check_content.py review_content.md` 自动检查。任何一项不过，修复后重新生成；禁止带病交付。
 
 ## 红线速查（详见 references/format-rules.md，违者返工）
 
@@ -74,7 +79,8 @@ python3 scripts/style_docx.py out.docx    # 见 references/word-pipeline.md
 7. 引用块（原题）不加底色；真题原图完整嵌入不得删图。
 8. 原创变式必须标注"AI 生成变式 / 改编自 卷名-题号"，并经答案重算核验。
 9. 中间产物只进 `.workbuddy/`；交付文件夹根层只放报告 docx、questions.csv、stats.json。
-10. 用户工作区内的定稿文件（七年级报告）视为只读模板，禁止修改。
+10. 条目顺序：题目 → 题目图片 → 答案 → 解析，答案行不得在题图之前（check_content.py 拦截）。
+11. 用户工作区内的定稿文件（七年级报告）视为只读模板，禁止修改。
 
 ## 与用户协作约定
 

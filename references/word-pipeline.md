@@ -60,6 +60,8 @@ cp ../stage3/报告.docx "<交付文件夹>/报告.docx"
 8. 页眉：word/header*.xml 含"Oli教室专用"且 document.xml 有 headerReference。
 9. styles.xml：Heading1 `w:before="0"`、BlockText 无 shd。
 10. 每道引用真题三查留痕：题号 grep 过、选项/题干读图转写过、答案重算过。
+11. 条目顺序：每个条目内图片行位于答案行之前（scripts/check_content.py 自动检查，违例输出条目名与行号）。
+12. 对账：参与统计卷数 = 源目录卷数 − EXCLUDED 数；questions.csv 行数 = 各卷题数之和；正文所有"N 份/M 题"与数据库一致。
 
 ## 常见坑（都是踩过的）
 
@@ -71,3 +73,8 @@ cp ../stage3/报告.docx "<交付文件夹>/报告.docx"
 - **python-docx 页眉**：`sec.header.paragraphs[0]` 默认存在；清空旧 run 后 add_run，中文字体必须同时设 rFonts 的 eastAsia。
 - **空段落插入**：`<w:p/>` 无 run 即为空行，高度继承 Normal；用 `para._p.addprevious(blank)` 插入。
 - **不要在生成链路里重写前言**：前言与所有正文只存在于 review_content.md；任何"重新生成"都从同一份内容源出发，防止把已删元信息带回来。
+- **WMF 公式图**：菁优网系 docx 的公式常为 MathType→WMF（单卷可达 500+ 处）。无 LibreOffice 时 `brew install libwmf`，再 `wmf2gd --maxwidth=1600 -t png -o "x.wmf.png" "x.wmf"`（xargs -P 8 并行，约 4700 个 1 分钟内完成）；渲染质量足够读图转写。
+- **透明 PNG 全黑**：菁优网题图与公式图多为 RGBA 透明底，读图/拼条带/嵌入前必须 `Image.alpha_composite` 合成白底；PIL 打开 .wmf 会抛 "cannot find loader"，应读 wmf 渲染后的 .wmf.png。EMF 无法用 libwmf 渲染，按上下文推断并标注。
+- **pandoc 图片路径漂移**：图片必须真实位于 stage2/images/（拷贝脚本里写绝对路径，防 cwd 漂移把文件拷去别处），pandoc 在 stage2/ 内执行；否则整批 "Could not fetch resource"，图片被替换为 alt 文本且**不报错中断**——生成后必须核对 word/media/ 数量。
+- **逐题图片条带**：读题干公式/题图用 scripts/make_strips_grade9.py 的思路——按题切分 md、每题全部图片拼一张带标签条带；题号正则须容忍 `**` 前缀、引用块、缩进，且同号取最后一次出现（注意事项 1/2/3 在真实题目前）。解析版另做一套 j 条带用于答案对质。
+- **答案与题图顺序**：内容源条目骨架为"题干→题图→答案→解析"，写完用 scripts/check_content.py 复查（九年级曾出现答案先于题图，用户明确返工）。
