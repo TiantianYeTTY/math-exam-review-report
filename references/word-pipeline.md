@@ -24,7 +24,7 @@ out.docx（公式=OMML，图片=嵌入，表格=原生表）
 | 正文样式 | Normal：微软雅黑 10.5pt、行距 1.6、段后 4pt | |
 | 标题样式 | Heading 1-4 / Title：微软雅黑加粗、H1/H2 色 #1A237E、H3/H4 色 #212121；**段前距全部为 0**（间隔由空段落负责） | H1 17pt、H2 13pt、H3 11.5pt、H4 11pt |
 | 页眉 | 每个 section 的 header 加"Oli教室专用"，9pt #8B97A8 居中，run 级设置 rFonts eastAsia | 每一页都显示 |
-| 章节间隔 | 遍历段落：跳过文档第一个标题；每个 Heading 1 前插 2 个空 `<w:p/>`，每个 Heading 2 前插 1 个（addprevious） | 空段落高度 = Normal 行高，即"回车空行" |
+| 章节间隔 | 遍历段落：H1/H2 跳过文档第一个标题；每个 Heading 1 前插 2 个空 `<w:p/>`、Heading 2 前插 1 个、Heading 4（变式标题）前插 1 个（H4 跳过首道变式）（addprevious） | 空段落高度 = Normal 行高，即"回车空行" |
 | 页边距 | 上 2.3 / 下 2.0 / 左 2.2 / 右 2.2 cm | |
 | 表格 | 全边框 single 4 #E0E0E0；表头底纹 #F5F7FA 加粗着色；表内 9.5pt、行距 1.4 | |
 | 引用块 | Block Text 样式：10.5pt、左缩进 0.5cm、右 0.3cm、行距 1.5；**无底纹** | 用于原题引用块 |

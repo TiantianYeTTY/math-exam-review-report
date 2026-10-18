@@ -157,10 +157,11 @@ for om in list(doc.element.body.iter(f"{{{M_NS}}}oMath")):
                     n_wj += 1
 print("WJ 插入标点数:", n_wj)
 
-# ---------- 章节间隔：真实回车空段落（大章节前 2 行、小章节前 1 行） ----------
-_blanks_made = {"h1": 0, "h2": 0}
+# ---------- 章节间隔：真实回车空段落（大章节前 2 行、小章节前 1 行、变式题间 1 行） ----------
+_blanks_made = {"h1": 0, "h2": 0, "h4": 0}
 _paras = list(doc.paragraphs)
 _first_seen = False
+_first_h4_seen = False
 for _para in _paras:
     _sname = _para.style.name if _para.style is not None else ""
     if _sname in ("Heading 1", "Heading 2"):
@@ -172,7 +173,15 @@ for _para in _paras:
             _blank = OxmlElement("w:p")
             _para._p.addprevious(_blank)
             _blanks_made["h1" if _sname == "Heading 1" else "h2"] += 1
-print("空段落: H1 前", _blanks_made["h1"], "| H2 前", _blanks_made["h2"])
+    elif _sname == "Heading 4":
+        # 第七部分变式题：相邻两道题之间空一行（Heading 4 = 变式标题，首道跳过）
+        if not _first_h4_seen:
+            _first_h4_seen = True
+            continue
+        _blank = OxmlElement("w:p")
+        _para._p.addprevious(_blank)
+        _blanks_made["h4"] += 1
+print("空段落: H1 前", _blanks_made["h1"], "| H2 前", _blanks_made["h2"], "| H4(变式) 前", _blanks_made["h4"])
 
 doc.save(SRC)
 print("styled:", SRC)
