@@ -1,0 +1,178 @@
+# -*- coding: utf-8 -*-
+"""pandoc docx 样式后处理: 字体/字号/标题色/页边距/表格边框与表头底纹"""
+import sys
+from docx import Document
+from docx.shared import Pt, Cm, RGBColor
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+SRC = sys.argv[1]
+doc = Document(SRC)
+
+def set_style_font(style, ascii_font, ea_font, size, bold=None, color=None):
+    style.font.name = ascii_font
+    style.font.size = Pt(size)
+    if bold is not None:
+        style.font.bold = bold
+    if color is not None:
+        style.font.color.rgb = RGBColor.from_string(color)
+    rpr = style.element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:ascii"), ascii_font)
+    rfonts.set(qn("w:hAnsi"), ascii_font)
+    rfonts.set(qn("w:eastAsia"), ea_font)
+
+S = doc.styles
+# 正文
+try:
+    normal = S["Normal"]
+    set_style_font(normal, "微软雅黑", "微软雅黑", 10.5)
+    normal.paragraph_format.line_spacing = 1.6
+    normal.paragraph_format.space_after = Pt(4)
+except KeyError:
+    pass
+# 标题
+for name, size, color, before in [("Heading 1", 17, "1A237E", 0), ("Heading 2", 13, "1A237E", 0), ("Heading 3", 11.5, "212121", 10), ("Heading 4", 11, "212121", 10), ("Title", 22, "1A237E", 0)]:
+    try:
+        st = S[name]
+        set_style_font(st, "微软雅黑", "微软雅黑", size, bold=True, color=color)
+        st.paragraph_format.space_before = Pt(before)
+        st.paragraph_format.space_after = Pt(8 if name in ("Heading 1", "Heading 2", "Title") else 4)
+    except KeyError:
+        pass
+
+# 页边距
+for sec in doc.sections:
+    sec.top_margin = Cm(2.3)
+    sec.bottom_margin = Cm(2.0)
+    sec.left_margin = Cm(2.2)
+    sec.right_margin = Cm(2.2)
+
+# 页眉：Oli教室专用（每一页）
+from docx.enum.text import WD_ALIGN_PARAGRAPH as _WAL
+for sec in doc.sections:
+    hdr = sec.header
+    hdr.is_linked_to_previous = False
+    hp = hdr.paragraphs[0] if hdr.paragraphs else hdr.add_paragraph()
+    for r in list(hp.runs):
+        r._element.getparent().remove(r._element)
+    run = hp.add_run("Oli教室专用")
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor.from_string("8B97A8")
+    run.font.name = "微软雅黑"
+    _rpr = run._element.get_or_add_rPr()
+    _rf = _rpr.find(qn("w:rFonts"))
+    if _rf is None:
+        _rf = OxmlElement("w:rFonts")
+        _rpr.append(_rf)
+    _rf.set(qn("w:ascii"), "微软雅黑")
+    _rf.set(qn("w:hAnsi"), "微软雅黑")
+    _rf.set(qn("w:eastAsia"), "微软雅黑")
+    hp.alignment = _WAL.CENTER
+
+# 引用块（原题块）样式：左缩进区分，不加底色
+try:
+    bt = S["Block Text"]
+    set_style_font(bt, "微软雅黑", "微软雅黑", 10.5)
+    bt.paragraph_format.left_indent = Cm(0.5)
+    bt.paragraph_format.right_indent = Cm(0.3)
+    bt.paragraph_format.space_before = Pt(4)
+    bt.paragraph_format.space_after = Pt(4)
+    bt.paragraph_format.line_spacing = 1.5
+except KeyError:
+    pass
+
+# 表格：全边框 + 表头底纹加粗 + 表内字号 9.5pt
+def set_cell_bg(cell, hexcolor):
+    tcPr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:fill"), hexcolor)
+    tcPr.append(shd)
+
+def set_table_borders(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = OxmlElement(f"w:{edge}")
+        el.set(qn("w:val"), "single")
+        el.set(qn("w:sz"), "4")
+        el.set(qn("w:color"), "E0E0E0")
+        borders.append(el)
+    tblPr.append(borders)
+
+for table in doc.tables:
+    set_table_borders(table)
+    for ri, row in enumerate(table.rows):
+        for cell in row.cells:
+            if ri == 0:
+                set_cell_bg(cell, "F5F7FA")
+            for p in cell.paragraphs:
+                p.paragraph_format.line_spacing = 1.4
+                p.paragraph_format.space_after = Pt(2)
+                for run in p.runs:
+                    run.font.size = Pt(9.5)
+                    if ri == 0:
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor.from_string("1A237E")
+
+# ---------- 排版守护 ----------
+# 1) 标题与下一段同页、标题自身不跨页（防止标题孤悬页底）
+for name in ("Heading 1", "Heading 2", "Heading 3", "Heading 4", "Title"):
+    try:
+        pf = S[name].paragraph_format
+        pf.keep_with_next = True
+        pf.keep_together = True
+    except KeyError:
+        pass
+
+# 2) 图片段落与后续内容同页
+for para in doc.paragraphs:
+    if para._p.find(".//" + qn("w:drawing")) is not None:
+        para.paragraph_format.keep_with_next = True
+
+# 3) 行内公式后紧跟的标点前插入词连接符 U+2060（防止 。，出现在行首）
+M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+WJ = "\u2060"
+PUNCT = set("。，、；：）")
+n_wj = 0
+for om in list(doc.element.body.iter(f"{{{M_NS}}}oMath")):
+    parent = om.getparent()
+    if parent is None:
+        continue
+    sibs = list(parent)
+    i = sibs.index(om)
+    if i + 1 < len(sibs):
+        nxt = sibs[i + 1]
+        if nxt.tag == f"{{{W_NS}}}r":
+            for t in nxt.findall(f"{{{W_NS}}}t"):
+                if t.text and t.text[0] in PUNCT:
+                    t.text = WJ + t.text
+                    n_wj += 1
+print("WJ 插入标点数:", n_wj)
+
+# ---------- 章节间隔：真实回车空段落（大章节前 2 行、小章节前 1 行） ----------
+_blanks_made = {"h1": 0, "h2": 0}
+_paras = list(doc.paragraphs)
+_first_seen = False
+for _para in _paras:
+    _sname = _para.style.name if _para.style is not None else ""
+    if _sname in ("Heading 1", "Heading 2"):
+        if not _first_seen:
+            _first_seen = True   # 文档第一个标题前不加空行
+            continue
+        _n = 2 if _sname == "Heading 1" else 1
+        for _ in range(_n):
+            _blank = OxmlElement("w:p")
+            _para._p.addprevious(_blank)
+            _blanks_made["h1" if _sname == "Heading 1" else "h2"] += 1
+print("空段落: H1 前", _blanks_made["h1"], "| H2 前", _blanks_made["h2"])
+
+doc.save(SRC)
+print("styled:", SRC)
+print("tables:", len(doc.tables), "| paragraphs:", len(doc.paragraphs))
