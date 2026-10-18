@@ -8,6 +8,7 @@
   4. 条目顺序：每个条目内第一张图片行必须位于第一行 **答案 之前（错误档案 #18）
   5. 引用的 images/xxx.png 文件真实存在
   6. 独立 --- 横线行 = 0
+  7. 条目编号连续性：同一小节内 **（N）** 必须从 1 连续递增，重复/跳号/乱序即违例（错误档案 #21）
 用法：python3 check_content.py review_content.md
 返回码：0 = 全部通过；1 = 存在违例（逐条打印条目名与行号）
 """
@@ -69,12 +70,29 @@ def main(md_path):
         if re.match(r'^-{3,}\s*$', ln):
             problems.append(f'[L{i}] 独立 --- 横线行')
 
+    # 7) 条目编号连续性：**（N）** 在同一小节内必须 1,2,3,… 连续（错误档案 #21）
+    prev_n = None
+    run_line = None
+    for i, ln in enumerate(lines, 1):
+        m = re.match(r'^\*\*（(\d+)）', ln)
+        if m:
+            n = int(m.group(1))
+            if prev_n is not None and n != prev_n + 1:
+                problems.append(f'[L{i}] 条目编号不连续：前一「（{prev_n}）」(L{run_line})，此处「（{n}）」')
+            if prev_n is None:
+                run_line = i
+            prev_n = n
+        elif re.match(r'^#{1,6} ', ln) or (re.match(r'^\*\*', ln) and not ANS_RE.search(ln)):
+            # 小节边界（标题/非答案加粗行）重置编号序列
+            prev_n = None
+            run_line = None
+
     if problems:
         print(f'共 {len(problems)} 处违例：')
         for p in problems:
             print(' ', p)
         sys.exit(1)
-    print('全部通过：$ 配对 / 禁用字面 / TXX / 图片-答案顺序 / 图片存在 / 横线')
+    print('全部通过：$ 配对 / 禁用字面 / TXX / 图片-答案顺序 / 图片存在 / 横线 / 编号连续')
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
