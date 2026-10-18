@@ -16,8 +16,6 @@
 | `questions.csv` | 逐题数据库：卷名/题号/题型/分值/考点编码/难度/易错点 |
 | `stats.json` | 考点覆盖率、难度分布、高频题型等统计（报告中的频次结论全部可追溯到它） |
 
-只产出 Word，不维护 PDF。
-
 ## 目录结构
 
 ```
@@ -58,6 +56,12 @@ math-exam-review-report/
 
 - pandoc（`brew install pandoc`）
 - Python 3 + `python-docx`
+
+## 👤 作者
+
+**TiantianYe**
+
+作者在 App Store 中的其他代表作品：水课帮-课堂提问助手；识词本-单词笔记；投影与视图3D教具；解构照片。
 
 ## License
 
