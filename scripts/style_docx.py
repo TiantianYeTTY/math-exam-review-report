@@ -222,11 +222,11 @@ for _para in list(doc.paragraphs):
         _new_section = False
 print("条目间隔空段（题目间换行）:", _n_entry)
 
-# ---------- 图片尺寸守护：超限等比缩小（默认宽/高上限 6cm） ----------
-# pandoc 按像素 96dpi 原生尺寸插图，题图常被放大到 9cm 级（原卷自然宽度多在 2.5-4.5cm）。
-# 可用环境变量 IMG_MAX_W_CM / IMG_MAX_H_CM 覆盖上限。
-MAX_W = Cm(float(os.environ.get("IMG_MAX_W_CM", "6")))
-MAX_H = Cm(float(os.environ.get("IMG_MAX_H_CM", "6")))
+# ---------- 图片尺寸守护：以限高为主（默认高上限 5cm），宽度仅防溢出版心兜底 ----------
+# 长条形题图（数轴/函数图像等）若按限宽 6cm 会被压得过小；用户 2026-10-21 定：改为限高 5cm。
+# IMG_MAX_H_CM 默认 5；IMG_MAX_W_CM 仅作版心溢出兜底（默认 16cm，正常题图不会触发）。
+MAX_W = Cm(float(os.environ.get("IMG_MAX_W_CM", "16")))
+MAX_H = Cm(float(os.environ.get("IMG_MAX_H_CM", "5")))
 _n_shrunk = 0
 for _shape in doc.inline_shapes:
     try:
@@ -240,7 +240,30 @@ for _shape in doc.inline_shapes:
         _shape.width = Emu(int(_w * _scale))
         _shape.height = Emu(int(_h * _scale))
         _n_shrunk += 1
-print("图片缩小:", _n_shrunk, "张 (上限 %.1fx%.1fcm)" % (MAX_W.cm, MAX_H.cm))
+print("图片缩小:", _n_shrunk, "张 (限高 %.1fcm，宽兜底 %.0fcm)" % (MAX_H.cm, MAX_W.cm))
+
+# ---------- 图注样式：图片行下的斜体图注行 → 9pt 灰色居中（不加 keepNext，用户 2026-10-21 定） ----------
+# 内容源约定：图行下独立成段写 *{卷名} 第 {X} 题题图（内容提示）*（全斜体）。图注内不要放公式。
+n_cap = 0
+for _para in doc.paragraphs:
+    _runs = [r for r in _para.runs if r.text.strip()]
+    if not _runs:
+        continue
+    _txt = ''.join(r.text for r in _runs)
+    if '题图' not in _txt:
+        continue
+    if not all(r.italic for r in _runs):
+        continue
+    _para.alignment = _WAL.CENTER
+    _para.paragraph_format.line_spacing = 1.2
+    _para.paragraph_format.space_before = Pt(2)
+    _para.paragraph_format.space_after = Pt(8)
+    for r in _runs:
+        r.font.size = Pt(9)
+        r.font.italic = True
+        r.font.color.rgb = RGBColor.from_string("5A6472")
+    n_cap += 1
+print("图注段样式化:", n_cap)
 
 doc.save(SRC)
 print("styled:", SRC)

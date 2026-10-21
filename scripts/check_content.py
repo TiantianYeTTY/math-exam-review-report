@@ -13,7 +13,7 @@ md 模式覆盖交付前质检清单的前半部分（Stage 4 手工项之外的
   8. 图先于题拦截：条目内第一张图片行之前必须存在题干文本行——任何情况下题目在图前，
      包括无答案/解析的条目（如 5.4 同模式真题题图集，错误档案 #22）
 docx 模式（--docx）审计已生成的 Word：
-  A. 图片尺寸 ≤ 上限（IMG_MAX_W_CM/IMG_MAX_H_CM，默认 6x6cm，错误档案 #24）
+  A. 图片尺寸 ≤ 上限（限高 IMG_MAX_H_CM 默认 5cm，宽度兜底 IMG_MAX_W_CM 默认 16cm，错误档案 #24）
   B. 每个条目头段之前有空段落（题目间换行 1 行，小节首条跳过，错误档案 #23）
   C. 图文同段且图在文字之前（pandoc implicit_figures 并段事故，错误档案 #22）
 返回码：0 = 全部通过；1 = 存在违例（逐条打印条目名与行号）
@@ -124,9 +124,9 @@ def check_docx(docx_path):
     problems = []
     doc = Document(docx_path)
 
-    # A) 图片尺寸上限（错误档案 #24）
-    max_w = Cm(float(os.environ.get('IMG_MAX_W_CM', '6')))
-    max_h = Cm(float(os.environ.get('IMG_MAX_H_CM', '6')))
+    # A) 图片尺寸上限（错误档案 #24；限高为主默认 5cm，宽度仅防溢出兜底 16cm）
+    max_w = Cm(float(os.environ.get('IMG_MAX_W_CM', '16')))
+    max_h = Cm(float(os.environ.get('IMG_MAX_H_CM', '5')))
     for k, sh in enumerate(doc.inline_shapes, 1):
         w, h = sh.width or 0, sh.height or 0
         if w > max_w or h > max_h:
