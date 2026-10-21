@@ -133,10 +133,9 @@ for name in ("Heading 1", "Heading 2", "Heading 3", "Heading 4", "Title"):
     except KeyError:
         pass
 
-# 2) 图片段落与后续内容同页
-for para in doc.paragraphs:
-    if para._p.find(".//" + qn("w:drawing")) is not None:
-        para.paragraph_format.keep_with_next = True
+# 2) 图片段落【不要】设置 keep_with_next（用户 2026-10-21 反馈）：
+#    keepNext 会让 Word 在段落左侧显示黑色小方点（与标题相同），图片看起来像"以标题格式插入"；
+#    成品报告（旧脚本）图片无此标记。图片与答案跨页分离可接受，禁止恢复此设置。
 
 # 3) 行内公式后紧跟的标点前插入词连接符 U+2060（防止 。，出现在行首）
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"

@@ -91,7 +91,7 @@ math-exam-review-report/
 ├── SKILL.md                          ← 技能正文：五阶段流程 + 红线速查
 ├── references/
 │   ├── report-template.md            ← 报告结构与全部条目模板（含七年级真实片段）
-│   ├── format-rules.md               ← 格式硬规则 + 25 条错误档案（错→用户反馈→正确做法）
+│   ├── format-rules.md               ← 格式硬规则 + 26 条错误档案（错→用户反馈→正确做法）
 │   ├── analysis-methodology.md       ← 试卷分析方法论（统计口径、解析版可信度校验、结论分级、变式质检）
 │   └── word-pipeline.md              ← Word 生成管线详解 + 质检清单 + 常见坑
 ├── scripts/
@@ -105,7 +105,7 @@ math-exam-review-report/
 
 ## 🐛 已知踩坑点（节选）
 
-SKILL.md 与 references/format-rules.md 中记录了完整的 25 条「错误 → 用户反馈 → 正确处理」，包括：
+SKILL.md 与 references/format-rules.md 中记录了完整的 26 条「错误 → 用户反馈 → 正确处理」，包括：
 
 - 用 Unicode 上标（x²、aⁿ）糊弄公式——必须全部走 LaTeX 渲染；
 - 原卷选择题的选项是图片公式，转写时整个丢失——必须逐张读图转写并核对四选项齐全；
