@@ -1,7 +1,8 @@
 # Designed by TiantianYe
 # -*- coding: utf-8 -*-
 """【内容源自动质检】check_content.py review_content.md [images_dir]
-覆盖交付前质检清单的前半部分（Stage 4 手工项之外的自动化部分）：
+       或【交付 docx 审计】check_content.py --docx 报告.docx
+md 模式覆盖交付前质检清单的前半部分（Stage 4 手工项之外的自动化部分）：
   1. $ 配对：逐行 $ 数量为偶数
   2. 禁用字面 grep = 0（错误档案 #7 的字面表）
   3. TXX 残留 = 0（学生可见文本）
@@ -9,7 +10,12 @@
   5. 引用的 images/xxx.png 文件真实存在
   6. 独立 --- 横线行 = 0
   7. 条目编号连续性：同一小节内 **（N）** 必须从 1 连续递增，重复/跳号/乱序即违例（错误档案 #21）
-用法：python3 check_content.py review_content.md
+  8. 图先于题拦截：条目内第一张图片行之前必须存在题干文本行——任何情况下题目在图前，
+     包括无答案/解析的条目（如 5.4 同模式真题题图集，错误档案 #22）
+docx 模式（--docx）审计已生成的 Word：
+  A. 图片尺寸 ≤ 上限（IMG_MAX_W_CM/IMG_MAX_H_CM，默认 6x6cm，错误档案 #24）
+  B. 每个条目头段之前有空段落（题目间换行 1 行，小节首条跳过，错误档案 #23）
+  C. 图文同段且图在文字之前（pandoc implicit_figures 并段事故，错误档案 #22）
 返回码：0 = 全部通过；1 = 存在违例（逐条打印条目名与行号）
 """
 import io, os, re, sys
@@ -20,7 +26,7 @@ ENTRY_RE = re.compile(r'^\*\*（\d+）|^#### ')          # 3.2/3.3 条目头、�
 IMG_RE = re.compile(r'^!\[.*\]\(([^)]+)\)')
 ANS_RE = re.compile(r'\*\*答案[：:]')
 
-def main(md_path):
+def check_md(md_path):
     lines = io.open(md_path, encoding='utf-8').read().split('\n')
     problems = []
 
@@ -44,20 +50,30 @@ def main(md_path):
         if re.search(r'\bT\d{2}\b', s):
             problems.append(f'[L{i}] TXX 残留: {ln[:60]}')
 
-    # 4) 条目内图片行先于答案行 + 5) 图片文件存在
+    # 4) 条目内图片行先于答案行 + 图先于题 + 5) 图片文件存在
     md_dir = os.path.dirname(os.path.abspath(md_path))
     entry = '(文件开头)'
     first_answer = None
+    saw_text = False          # 条目内是否已出现题干文本行（标题/条目头/引用块/普通文本行均算）
     for i, ln in enumerate(lines, 1):
         # 条目/章节边界：3.2/3.3 条目头、变式头、各级 md 标题、加粗小节头（**压轴一…**、**同型题图集**…；答案行不重置）
-        if ENTRY_RE.match(ln) or re.match(r'^#{1,6} ', ln) or (re.match(r'^\*\*', ln) and not ANS_RE.search(ln)):
+        if ENTRY_RE.match(ln) or (re.match(r'^\*\*', ln) and not ANS_RE.search(ln)):
             entry = ln.strip()[:50]
             first_answer = None
+            saw_text = True   # 条目头按模板含题目内容简述，算题干文本
+        elif re.match(r'^#{1,6} ', ln):
+            entry = ln.strip()[:50]
+            first_answer = None
+            saw_text = False  # 章节标题不是题干文本：标题后直接贴图 = 图先于题
+        elif ln.strip() and not IMG_RE.match(ln.strip()):
+            saw_text = True   # 普通文本行（含引用块题干）；图片行不算文本
         if ANS_RE.search(ln) and first_answer is None:
             first_answer = i
         m = IMG_RE.match(ln.strip())
         if m:
             img = m.group(1)
+            if not saw_text:
+                problems.append(f'[L{i}] 条目「{entry}」图片前无题干文本（图先于题，题目必须在前）')
             if first_answer is not None:
                 problems.append(f'[L{i}] 条目「{entry}」图片出现在答案行(L{first_answer})之后')
             if img.startswith('images/'):
@@ -92,10 +108,77 @@ def main(md_path):
         for p in problems:
             print(' ', p)
         sys.exit(1)
-    print('全部通过：$ 配对 / 禁用字面 / TXX / 图片-答案顺序 / 图片存在 / 横线 / 编号连续')
+    print('全部通过：$ 配对 / 禁用字面 / TXX / 图片-答案顺序 / 图前有题干 / 图片存在 / 横线 / 编号连续')
+
+def check_docx(docx_path):
+    from docx import Document
+    from docx.oxml.ns import qn
+    from docx.shared import Cm
+    problems = []
+    doc = Document(docx_path)
+
+    # A) 图片尺寸上限（错误档案 #24）
+    max_w = Cm(float(os.environ.get('IMG_MAX_W_CM', '6')))
+    max_h = Cm(float(os.environ.get('IMG_MAX_H_CM', '6')))
+    for k, sh in enumerate(doc.inline_shapes, 1):
+        w, h = sh.width or 0, sh.height or 0
+        if w > max_w or h > max_h:
+            problems.append(f'图片#{k} 尺寸超上限: {w/360000:.1f}x{h/360000:.1f}cm（上限 {max_w.cm:.0f}x{max_h.cm:.0f}cm）')
+
+    # 条目头判定（与 style_docx.py 保持一致）
+    head_re = re.compile(r'^（\d+）|^典型原题')
+    def is_entry_head(p):
+        if p.style is None or p.style.name in ('Block Text', 'Quote'):
+            return False
+        txt = p.text.strip()
+        if not txt:
+            return False
+        first = next((r for r in p.runs if r.text.strip()), None)
+        if first is None or not first.bold:
+            return False
+        return bool(head_re.match(txt)) or ('——代表题：' in txt or '——代表题:' in txt)
+
+    # B) 条目头前空段（错误档案 #23）+ C) 图文同段且图在前（错误档案 #22）
+    new_section = True
+    paras = list(doc.paragraphs)
+    for idx, p in enumerate(paras):
+        sname = p.style.name if p.style is not None else ''
+        if sname.startswith('Heading') or sname == 'Title':
+            new_section = True
+            continue
+        drawing = p._p.find('.//' + qn('w:drawing'))
+        if drawing is not None:
+            # C) 图文同段（题图必须独立成段），并注明图在前/图在后（八年级 5.4 并段事故，错误档案 #22）
+            if p.text.strip():
+                first_run = next((r for r in p.runs if r.text.strip()), None)
+                if first_run is not None:
+                    dr_el = drawing.getparent() if drawing.getparent().tag == qn('w:r') else drawing
+                    pos = '图在前' if list(p._p.iter()).index(dr_el) < list(p._p.iter()).index(first_run._element) else '图在后'
+                    problems.append(f'段{idx}「{p.text.strip()[:30]}…」图文同段（{pos}）——题图必须独立成段，题目与图分开放')
+            new_section = False if not is_entry_head(p) else new_section
+            continue
+        if is_entry_head(p):
+            if not new_section:
+                prev = paras[idx - 1] if idx else None
+                if prev is None or prev.text.strip():
+                    problems.append(f'条目「{p.text.strip()[:30]}…」前缺空段落（题目间必须换行 1 行）')
+            new_section = False
+
+    if problems:
+        print(f'docx 审计共 {len(problems)} 处违例：')
+        for p in problems:
+            print(' ', p)
+        sys.exit(1)
+    print('docx 审计全部通过：图片尺寸上限 / 条目间空行 / 图文并段')
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(2)
-    main(sys.argv[1])
+    if sys.argv[1] == '--docx':
+        if len(sys.argv) < 3:
+            print(__doc__)
+            sys.exit(2)
+        check_docx(sys.argv[2])
+    else:
+        check_md(sys.argv[1])

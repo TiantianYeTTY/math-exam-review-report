@@ -1,9 +1,11 @@
 # Designed by TiantianYe
 # -*- coding: utf-8 -*-
-"""pandoc docx 样式后处理: 字体/字号/标题色/页边距/表格边框与表头底纹"""
+"""pandoc docx 样式后处理: 字体/字号/标题色/页边距/表格边框与表头底纹/图片限宽/条目间隔"""
+import os
+import re
 import sys
 from docx import Document
-from docx.shared import Pt, Cm, RGBColor
+from docx.shared import Pt, Cm, RGBColor, Emu
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -182,6 +184,64 @@ for _para in _paras:
         _para._p.addprevious(_blank)
         _blanks_made["h4"] += 1
 print("空段落: H1 前", _blanks_made["h1"], "| H2 前", _blanks_made["h2"], "| H4(变式) 前", _blanks_made["h4"])
+
+# ---------- 题目条目间隔：每个条目头段前 1 个空段落（小节首条跳过） ----------
+# 条目头判定（与内容源模板对应，全部为"加粗起头"段）：
+#   **（N）考点名…**            （3.2/3.3/5.4 题图集等编号条目）
+#   **典型原题（卷名 第 X 题）…** （2.x 选择题条目）
+#   **…——代表题：卷名 第 X 题**  （4.2 高频题型拆解等）
+# 引用块（Block Text）内的加粗题干行、各级标题、答案行均不算条目头。
+_HEAD_RE = re.compile(r"^（\d+）|^典型原题")
+
+def _is_entry_head(p):
+    if p.style is None or p.style.name in ("Block Text", "Quote"):
+        return False
+    txt = p.text.strip()
+    if not txt:
+        return False
+    first = next((r for r in p.runs if r.text.strip()), None)
+    if first is None or not first.bold:
+        return False
+    if _HEAD_RE.match(txt):
+        return True
+    if "——代表题：" in txt or "——代表题:" in txt:
+        return True
+    return False
+
+_n_entry = 0
+_new_section = True   # 文档开头与每个标题之后视为新小节，首条跳过
+for _para in list(doc.paragraphs):
+    _sname = _para.style.name if _para.style is not None else ""
+    if _sname.startswith("Heading") or _sname == "Title":
+        _new_section = True
+        continue
+    if _is_entry_head(_para):
+        if not _new_section:
+            _blank = OxmlElement("w:p")
+            _para._p.addprevious(_blank)
+            _n_entry += 1
+        _new_section = False
+print("条目间隔空段（题目间换行）:", _n_entry)
+
+# ---------- 图片尺寸守护：超限等比缩小（默认宽/高上限 6cm） ----------
+# pandoc 按像素 96dpi 原生尺寸插图，题图常被放大到 9cm 级（原卷自然宽度多在 2.5-4.5cm）。
+# 可用环境变量 IMG_MAX_W_CM / IMG_MAX_H_CM 覆盖上限。
+MAX_W = Cm(float(os.environ.get("IMG_MAX_W_CM", "6")))
+MAX_H = Cm(float(os.environ.get("IMG_MAX_H_CM", "6")))
+_n_shrunk = 0
+for _shape in doc.inline_shapes:
+    try:
+        _w, _h = _shape.width, _shape.height
+    except Exception:
+        continue
+    if not _w or not _h:
+        continue
+    _scale = min(MAX_W / _w, MAX_H / _h, 1.0)
+    if _scale < 1.0:
+        _shape.width = Emu(int(_w * _scale))
+        _shape.height = Emu(int(_h * _scale))
+        _n_shrunk += 1
+print("图片缩小:", _n_shrunk, "张 (上限 %.1fx%.1fcm)" % (MAX_W.cm, MAX_H.cm))
 
 doc.save(SRC)
 print("styled:", SRC)
