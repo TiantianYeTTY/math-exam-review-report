@@ -254,7 +254,7 @@ for _para in doc.paragraphs:
         continue
     if not all(r.italic for r in _runs):
         continue
-    _para.alignment = _WAL.CENTER
+    # 用户 2026-10-21 定：图注靠左（正文正常对齐），不居中
     _para.paragraph_format.line_spacing = 1.2
     _para.paragraph_format.space_before = Pt(2)
     _para.paragraph_format.space_after = Pt(8)
