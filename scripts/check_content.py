@@ -54,26 +54,33 @@ def check_md(md_path):
     md_dir = os.path.dirname(os.path.abspath(md_path))
     entry = '(文件开头)'
     first_answer = None
-    saw_text = False          # 条目内是否已出现题干文本行（标题/条目头/引用块/普通文本行均算）
+    has_question = False      # 距上一张图以来是否出现过题干（题干引用块或条目头）
     for i, ln in enumerate(lines, 1):
         # 条目/章节边界：3.2/3.3 条目头、变式头、各级 md 标题、加粗小节头（**压轴一…**、**同型题图集**…；答案行不重置）
         if ENTRY_RE.match(ln) or (re.match(r'^\*\*', ln) and not ANS_RE.search(ln)):
             entry = ln.strip()[:50]
             first_answer = None
-            saw_text = True   # 条目头按模板含题目内容简述，算题干文本
+            # 编号条目头（**（N）…**，按模板含题目简述）与典型原题头算题干；
+            # 其他加粗行（小节头/变式头/解析引导）重置题干标记
+            if re.match(r'^\*\*（\d+）', ln) or ln.startswith('**典型原题'):
+                has_question = True
+            else:
+                has_question = False
         elif re.match(r'^#{1,6} ', ln):
             entry = ln.strip()[:50]
             first_answer = None
-            saw_text = False  # 章节标题不是题干文本：标题后直接贴图 = 图先于题
-        elif ln.strip() and not IMG_RE.match(ln.strip()):
-            saw_text = True   # 普通文本行（含引用块题干）；图片行不算文本
+            has_question = False   # 章节标题不是题干：标题→图之间必须有条目头/题干引用块
+        if ln.startswith('>'):
+            has_question = True    # 题干引用块
         if ANS_RE.search(ln) and first_answer is None:
             first_answer = i
         m = IMG_RE.match(ln.strip())
         if m:
             img = m.group(1)
-            if not saw_text:
-                problems.append(f'[L{i}] 条目「{entry}」图片前无题干文本（图先于题，题目必须在前）')
+            if not has_question:
+                problems.append(f'[L{i}] 条目「{entry}」图片前无题干（题干引用块或条目头必须在图前，图先于题）')
+            else:
+                has_question = False   # 每张图都要有自己的题干，下一张图重新检查
             if first_answer is not None:
                 problems.append(f'[L{i}] 条目「{entry}」图片出现在答案行(L{first_answer})之后')
             if img.startswith('images/'):
