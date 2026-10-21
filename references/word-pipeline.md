@@ -4,9 +4,9 @@
 
 ```
 review_content.md（内容源，Markdown+LaTeX）
-    │  pandoc -f markdown+pipe_tables -t docx --wrap=none
+    │  pandoc -f markdown+pipe_tables-implicit_figures -t docx --wrap=none
     ▼
-out.docx（公式=OMML，图片=嵌入，表格=原生表）
+out.docx（公式=OMML，图片=普通 inline 段落，表格=原生表）
     │  scripts/style_docx.py（python-docx 后处理）
     ▼
 交付 docx（页眉/字体/标题色/空段落间隔/图片限宽/WJ/表格样式）
@@ -38,14 +38,14 @@ out.docx（公式=OMML，图片=嵌入，表格=原生表）
 - 行内公式 `$...$`；重点推导独立成行用 `$$...$$`（每条保持单行）。
 - 选择题选项写成 `A\. xxx`（转义句点）并空行分段，防 pandoc fancy_lists 把连续选项行变成编号列表。
 - 原题引用块用 `>`，块内含多个小问时用 `>` 空行 + `> 续行` 保持同一引用块。
-- 图片：`![alt](images/xxx.png)`，alt 写"卷名 第 X 题题图"；图片文件先放 stage2/images/。
+- 图片：`![alt](images/xxx.png)`，alt 写"卷名 第 X 题题图"（进图片替代文字，不显示）；**pandoc 必须禁用 implicit_figures（`-implicit_figures`）**——图片以普通段落插入、可自由剪切移动，不生成"图+图注"的 CaptionedFigure/ImageCaption 结构（用户反馈图注样式与标题相似、图片不便移动）；图片文件先放 stage2/images/。
 - 表格用 pipe table；表头行必填。
 - `# 第一部分` 为 H1、`## 2.1` 为 H2、`#### 变式 N` 为 H4——style 脚本按此识别插空段。
 
 ## 生成命令（在工作目录 stage2/ 下）
 
 ```bash
-pandoc review_content.md -f markdown+pipe_tables -t docx --wrap=none -o ../stage3/报告.docx
+pandoc review_content.md -f markdown+pipe_tables-implicit_figures -t docx --wrap=none -o ../stage3/报告.docx
 python3 <skill>/scripts/style_docx.py ../stage3/报告.docx
 cp ../stage3/报告.docx "<交付文件夹>/报告.docx"
 ```
@@ -83,7 +83,7 @@ cp ../stage3/报告.docx "<交付文件夹>/报告.docx"
 - **pandoc 图片路径漂移**：图片必须真实位于 stage2/images/（拷贝脚本里写绝对路径，防 cwd 漂移把文件拷去别处），pandoc 在 stage2/ 内执行；否则整批 "Could not fetch resource"，图片被替换为 alt 文本且**不报错中断**——生成后必须核对 word/media/ 数量。
 - **逐题图片条带**：读题干公式/题图用 scripts/make_strips_grade9.py 的思路——按题切分 md、每题全部图片拼一张带标签条带；题号正则须容忍 `**` 前缀、引用块、缩进，且同号取最后一次出现（注意事项 1/2/3 在真实题目前）。解析版另做一套 j 条带用于答案对质。
 - **答案与题图顺序**：内容源条目骨架为"题干→题图→答案→解析"，任何情况下题目都在图前（含无答案/解析的题图集条目），写完用 scripts/check_content.py 复查（九年级曾出现答案先于题图、八年级 5.4 曾出现图先于题，用户均明确返工）。
-- **pandoc implicit_figures 图文并段**：`![alt](img)` 单独成段会生成 CaptionedFigure + ImageCaption；若图行之后紧跟文字行（中间无空行），文字会被并进图的段落且**图在前、文字在后**——八年级 5.4 题图集"先图后题"事故根源。题图必须独立成段、位于题干文本之后；check_content.py 第 8 项与 --docx 审计均拦截。
+- **pandoc implicit_figures 已禁用**：pandoc 命令一律 `-f markdown+pipe_tables-implicit_figures`——否则 `![alt](img)` 独立成段会生成 CaptionedFigure + ImageCaption 结构，图注样式与标题相似、图片不便移动（用户 2026-10-21 反馈，错误档案 #25）。禁用后图片=普通 inline 段落；但**图行之后紧跟文字行（中间无空行）仍会并段且图在前**——图先于题风险不因此消失，check_content.py 第 8 项与 --docx 审计照常拦截。
 - **题图尺寸**：pandoc 按像素 96dpi 原生尺寸插图，原卷截图常达 9cm 宽（原卷自然宽度仅 2.5–4.5cm）——一律由 style_docx.py 限宽（默认 6×6cm，IMG_MAX_W_CM/IMG_MAX_H_CM 可调），交付前用 --docx 审计兜底。
 - **交付 docx 覆盖保护（用户可能在 Word 里改过）**：**修改交付 docx 的唯一默认路径 = 精修（XML 手术增量修改），只动用户点名的部分，整卷重建/覆盖重写默认禁止**（即使"源↔交付全文等价校验"通过也不允许，除非用户明确同意；用户已改过的内容为基准；归一化对比：去 $/^/_/花括号/引号形态差异/表格线后 difflib）。动手前仍须：①查目录下 ~$ 锁文件（有则提醒用户先关闭）；②将现有文件复制到 `.workbuddy/backups/<时间戳>/` 快照；③将现有文件转纯文本与手中基线 diff，发现用户改动 → 停下报告并询问合并方式，绝不直接覆盖；④XML 手术（unzip→lxml 改 document.xml→rezip，保留用户已存改动）。
 - **XML 手术三件套**：克隆段落内现有 run 保 rPr 字体；分数用 `<m:f><m:num>…</m:num><m:den>…</m:den></m:f>` 构造并核对命名空间；锚点用"唯一文本+邻段内容"双重校验防误替换。pandoc plain 输出中复杂公式显示为 $...$ 是正常回退渲染，不是错误。

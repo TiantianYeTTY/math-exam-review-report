@@ -58,7 +58,7 @@ pandoc "试卷（解析版）.docx" -t markdown --wrap=none --extract-media="T01
 ### Stage 3 · 生成 Word
 
 ```bash
-pandoc review_content.md -f markdown+pipe_tables -t docx --wrap=none -o out.docx
+pandoc review_content.md -f markdown+pipe_tables-implicit_figures -t docx --wrap=none -o out.docx
 python3 scripts/style_docx.py out.docx    # 见 references/word-pipeline.md
 ```
 

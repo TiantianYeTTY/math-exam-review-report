@@ -91,7 +91,7 @@ math-exam-review-report/
 ├── SKILL.md                          ← 技能正文：五阶段流程 + 红线速查
 ├── references/
 │   ├── report-template.md            ← 报告结构与全部条目模板（含七年级真实片段）
-│   ├── format-rules.md               ← 格式硬规则 + 24 条错误档案（错→用户反馈→正确做法）
+│   ├── format-rules.md               ← 格式硬规则 + 25 条错误档案（错→用户反馈→正确做法）
 │   ├── analysis-methodology.md       ← 试卷分析方法论（统计口径、解析版可信度校验、结论分级、变式质检）
 │   └── word-pipeline.md              ← Word 生成管线详解 + 质检清单 + 常见坑
 ├── scripts/
@@ -105,7 +105,7 @@ math-exam-review-report/
 
 ## 🐛 已知踩坑点（节选）
 
-SKILL.md 与 references/format-rules.md 中记录了完整的 24 条「错误 → 用户反馈 → 正确处理」，包括：
+SKILL.md 与 references/format-rules.md 中记录了完整的 25 条「错误 → 用户反馈 → 正确处理」，包括：
 
 - 用 Unicode 上标（x²、aⁿ）糊弄公式——必须全部走 LaTeX 渲染；
 - 原卷选择题的选项是图片公式，转写时整个丢失——必须逐张读图转写并核对四选项齐全；
@@ -117,6 +117,7 @@ SKILL.md 与 references/format-rules.md 中记录了完整的 24 条「错误 �
 - 条目先放答案再放题图、题图集先图后题——顺序固定为"题目 → 题目图片 → 答案 → 解析"，任何情况下题目都在图前，check_content.py 自动拦截；
 - 题目条目之间没有空行——所有有题目的地方每题结束换行 1 行，style_docx.py 自动插；
 - 题图按原生尺寸插入过大——默认限 6×6cm，超限等比缩小；
+- 图片被插成"图+图注"的标题样式结构——pandoc 禁用 implicit_figures，图片以普通段落插入、可自由移动；
 - 修改交付 Word 时整卷重写覆盖用户手工改动——一律 XML 手术精修、只动用户点名的部分；
 - ……
 
