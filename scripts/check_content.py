@@ -12,6 +12,10 @@ md 模式覆盖交付前质检清单的前半部分（Stage 4 手工项之外的
   7. 条目编号连续性：同一小节内 **（N）** 必须从 1 连续递增，重复/跳号/乱序即违例（错误档案 #21）
   8. 图先于题拦截：条目内第一张图片行之前必须存在题干文本行——任何情况下题目在图前，
      包括无答案/解析的条目（如 5.4 同模式真题题图集，错误档案 #22）
+  9. 多小问分段：同一段落（含引用块聚段）内出现 ≥2 个 (N) 小问标记 = 窝行违例
+     （2026-10-22 九年级定稿新增，硬规则 #21，错误档案 #31）
+  10. 变式"易错"分段：凡"易错[：:]"不出现在行首 = 未独立成段违例
+     （2026-10-22 九年级定稿新增，硬规则 #22，错误档案 #32）
 docx 模式（--docx）审计已生成的 Word：
   A. 图片尺寸 ≤ 上限（限高 IMG_MAX_H_CM 默认 5cm，宽度兜底 IMG_MAX_W_CM 默认 16cm，错误档案 #24）
   B. 每个条目头段之前有空段落（题目间换行 1 行，小节首条跳过，错误档案 #23）
@@ -110,12 +114,57 @@ def check_md(md_path):
             prev_n = None
             run_line = None
 
+    # 9) 多小问分段（错误档案 #31，硬规则 #21）：同一段落内出现多个 (N) 小问标记 = 窝行。
+    #    md 段落判定：普通行逐行即段；引用块按相邻 `>` 行聚段（`>` 空行分段）。
+    #    阈值：引用块（题干）≥2 个 (N) 即违例；普通段（解析等）≥3 个才违例——
+    #    "解析：(1)…(2)…"两问短解析在九年级定稿中允许连排（错误档案 #31 正确做法列），
+    #    答案行（**答案：(1)…；(2)…**）按用户定稿豁免（紧凑计数是合法形态）。
+    SUBQ_RE = re.compile(r'\(\d+\)')
+    para_buf, para_start, para_is_quote = [], None, False
+
+    def flush_para(end_i):
+        if not para_buf:
+            return
+        joined = ' '.join(para_buf)
+        n_sub = len(SUBQ_RE.findall(joined))
+        limit = 2 if para_is_quote else 3
+        if n_sub >= limit:
+            problems.append(f'[L{para_start}] 小问窝行（同段出现 {n_sub} 个 (N) 标记，须按硬规则 #21 每问独立成段）: '
+                            + joined[:120])
+
+    for i, ln in enumerate(lines, 1):
+        s = ln.strip()
+        if s.startswith('>'):
+            body = s[1:].strip()
+            if para_start is None:
+                para_start, para_buf, para_is_quote = i, [], True
+            if body == '':
+                flush_para(i)          # `>` 空行 = 引用段结束
+                para_start, para_buf, para_is_quote = None, [], False
+            else:
+                para_buf.append(body)
+        else:
+            flush_para(i)
+            para_start, para_buf, para_is_quote = None, [], False
+            if s and not s.startswith(('|', '#', '![', '*', '---', '- ')) and not ANS_RE.search(s):
+                # 普通正文段：排除表格/标题/图片/图注/列表行/答案行
+                if len(SUBQ_RE.findall(s)) >= 3:
+                    problems.append(f'[L{i}] 小问窝行（同段出现多个 (N) 标记，须按硬规则 #21 每问独立成段）: {s[:120]}')
+    flush_para(len(lines))
+
+    # 10) 变式"易错"分段（错误档案 #32，硬规则 #22）：易错：… 必须独立成段
+    #    （行首允许 **易错： / *易错： 等强调标记；表格行不含"易错[：:]"天然放行）
+    for i, ln in enumerate(lines, 1):
+        s = ln.strip()
+        if re.search(r'易错[：:]', s) and not re.match(r'^(?:\*\*|\*)?易错[：:]', s):
+            problems.append(f'[L{i}] "易错"未独立成段（硬规则 #22，须换行另起一段）: {s[:80]}')
+
     if problems:
         print(f'共 {len(problems)} 处违例：')
         for p in problems:
             print(' ', p)
         sys.exit(1)
-    print('全部通过：$ 配对 / 禁用字面 / TXX / 图片-答案顺序 / 图前有题干 / 图片存在 / 横线 / 编号连续')
+    print('全部通过：$ 配对 / 禁用字面 / TXX / 图片-答案顺序 / 图前有题干 / 图片存在 / 横线 / 编号连续 / 小问分段 / 易错分段')
 
 def check_docx(docx_path):
     from docx import Document
